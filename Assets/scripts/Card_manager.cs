@@ -40,6 +40,8 @@ public class CardManager : MonoBehaviour
     private int CardMaxCount= 10;  
 
     private Camera mainCamera;
+
+    private CardItem focused_item = null;
   
 
 
@@ -122,7 +124,7 @@ public class CardManager : MonoBehaviour
         GameObject item = Instantiate(cardItem, this.transform);  
         item.transform.localPosition = new Vector3(-10, 25, 10);
         CardItem text = item.GetComponent<CardItem>();  
-        text.RefreshData(rootPos, 0, 0, 0, false);  
+        text.RefreshData(rootPos, 0, 0, 0 );  
 
         // 加载图片资源
 
@@ -143,12 +145,13 @@ public class CardManager : MonoBehaviour
         if (cardList==null)  
         {            
            return;  
-        }  
+        }
+        
 
         Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition); // Create a ray from the mouse position
         RaycastHit hit;
         
-        Collider[] childColliders = GetComponentsInChildren<Collider>();
+        BoxCollider[] childColliders = GetComponentsInChildren<BoxCollider  >();    //read all Collider components from the children list
 
 
         float start_x = rootPos.x - 0.6f * (float) Mathf.Pow((float)(cardList.Count - 1), 0.8f);
@@ -158,58 +161,77 @@ public class CardManager : MonoBehaviour
         {   
             bool ishovering = false;
             
-            if (Physics.Raycast(ray, out hit))
+
+            if (Input.mousePosition.x >= 0 && Input.mousePosition.x <= Screen.width && Input.mousePosition  .y >= 0 && Input.mousePosition.y <= Screen.height)
             {
-                if (hit.collider == childColliders[i]) // Check if the ray hits this object's collider
+                if (Physics.Raycast(ray, out hit))
                 {
-                    ishovering = true;
+                    if (hit.collider == childColliders[i]) // Check if the ray hits this object's collider
+                    {
+                        ishovering = true;
+                    }
                 }
             }
-    
-            cardList[i].RefreshData(rootPos,rotPos[i],size,i, ishovering);
-            Quaternion rotationQuaternion = Quaternion.Euler(new Vector3(0, 0, 1));
-
+            
+            
+            
+            float targetx;
             if (start_x != rootPos.x){
-
-                float targetx = (start_x + i * ((rootPos.x - start_x) * 2) / (cardList.Count - 1));
-                float targety = Camera.main.transform.pos;
-
-
-                
-
-                if (!ishovering){
-                    rotationQuaternion = Quaternion.Euler(new Vector3(0, 0, (rootPos.x - cardList[i].transform.position.x) * 6f));
-                    targety = (float) rootPos.y - Mathf.Pow((float)(Mathf.Abs(cardList[i].transform.position.x - rootPos.x) * 0.2), 2f);
-                }
-
-
-
-                //setting x/y position
-                cardList[i].transform.position = Vector3.Lerp(cardList[i].transform.position, new Vector3(targetx, targety, rootPos.z), Time.deltaTime * 30);
-                cardList[i].transform.rotation = Quaternion.RotateTowards(cardList[i].transform.rotation, rotationQuaternion, Time.deltaTime * 200);  
-
+                targetx = (start_x + i * ((rootPos.x - start_x) * 2) / (cardList.Count - 1));
             }
             else{
-                cardList[i].transform.position = Vector3.Lerp(cardList[i].transform.position, new Vector3(start_x, rootPos.y, rootPos.z), Time.deltaTime * 30);
+                targetx = rootPos.x;
+            }
+           
+           
+           float targety = (float) rootPos.y - Mathf.Pow((float)(Mathf.Abs(cardList[i].transform.position.x - rootPos.x) * 0.2), 2f) - 0.2f;
+
+            Quaternion rotationQuaternion = Quaternion.Euler(new Vector3(0, 0, (rootPos.x - cardList[i].transform.position.x) * 6f));
+            
+
+            if (ishovering || focused_item == cardList[i]){
+               
+                childColliders[i].size = new Vector3 (6.5f, childColliders[i].size.y, childColliders[i].size.z);
+
+                rotationQuaternion = Quaternion.Euler(new Vector3(0, 0, 1));
+                
+                targety = Camera.main.transform.position.y - 1.9f;
+                
+                cardList[i].transform.localScale = Vector3.Lerp(cardList[i].transform.localScale,  new Vector3(0.25f, 0.25f, 1f), Time.deltaTime * 50f);
+                
+                cardList[i].RefreshData(rootPos,rotPos[i],size,20);
+                
+                if (Input.GetMouseButton(0) && focused_item == null){
+                    focused_item = cardList[i];
+                }
+            }
+            else{
+                childColliders[i].size = new Vector3 (5.97f, childColliders[i].size.y, childColliders[i].size.z);
+
+                cardList[i].transform.localScale = Vector3.Lerp(cardList[i].transform.localScale,  new Vector3(0.2f, 0.2f, 0.2f), Time.deltaTime * 50f);
+
+                cardList[i].RefreshData(rootPos,rotPos[i],size,i);
             }
 
             
 
 
+            if(focused_item != cardList[i]){
+
+                //it goes to where it should go
+                cardList[i].transform.position = Vector3.Lerp(cardList[i].transform.position, new Vector3(targetx, targety, rootPos.z), Time.deltaTime * 30);
+            }
+            else{
+
+                //it goes for the mouse
+                cardList[i].transform.position = Vector3.Lerp(cardList[i].transform.position, Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, cardList[i].transform.position.z)), Time.deltaTime * 30);
+            }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+            //changing the angle
+            cardList[i].transform.rotation = Quaternion.RotateTowards(cardList[i].transform.rotation, rotationQuaternion, Time.deltaTime * 200);  
+                
 
         }  
     }    
@@ -274,7 +296,32 @@ public class CardManager : MonoBehaviour
     /// </summary>  
 
     public void TaskItemDetection()  
-    {       
+    {  
+        
+        
+        
+        
+        if (!Input.GetMouseButton(0)){
+            if(focused_item != null){
+
+                if(Input.mousePosition.y >= Screen.height / 2.5){
+                    play(focused_item);
+                }
+                
+
+                
+            }
+
+            focused_item = null;
+        }
+
+
+
+
+
+
+
+        //debug
        if (Input.GetKeyDown(KeyCode.A))  
         {         
            AddCard();  
@@ -284,4 +331,9 @@ public class CardManager : MonoBehaviour
            RemoveCard(cardList[cardList.Count - 1]);
         }           
      }  
+
+
+     public void play(CardItem played_card){
+        RemoveCard(played_card);
+     }
 }
